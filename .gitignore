@@ -43,6 +43,7 @@ app.*.map.json
 /android/app/release
 
 local.properties
+.signing/
 
 *.aar
 *.exe
@@ -54,5 +55,4 @@ local.properties
 alist-lib
 !alist-lib/alistlib
 !alist-lib/scripts
-
 

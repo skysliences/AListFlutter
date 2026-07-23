@@ -112,10 +112,10 @@ jobs:
           KEY_STORE: ${{ secrets.KEY_STORE }}
         run: |
           {
-            printf "ALIAS_NAME='%s'\n" "${ALIAS_NAME}"
-            printf "ALIAS_PASSWORD='%s'\n" "${ALIAS_PASSWORD}"
-            printf "KEY_PASSWORD='%s'\n" "${KEY_PASSWORD}"
-            printf "KEY_PATH='./key.jks'\n"
+            printf 'ALIAS_NAME=%s\n' "${ALIAS_NAME}"
+            printf 'ALIAS_PASSWORD=%s\n' "${ALIAS_PASSWORD}"
+            printf 'KEY_PASSWORD=%s\n' "${KEY_PASSWORD}"
+            printf 'KEY_PATH=./key.jks\n'
           } > android/local.properties
           printf '%s' "${KEY_STORE}" | base64 --decode > android/app/key.jks
 
