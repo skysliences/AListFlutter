@@ -131,24 +131,28 @@ jobs:
       - name: Read app version
         id: app
         run: |
-          version="$(
+          app_version="$(
             jq --exit-status --raw-output \
               '.elements[0].versionName' \
               "${APK_OUTPUT}/output-metadata.json"
           )"
-          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          release_version="${app_version}-alist-${ALIST_VERSION}"
+          {
+            echo "version=${app_version}"
+            echo "release_version=${release_version}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: AListFlutter-${{ steps.app.outputs.version }}
+          name: AListFlutter-${{ steps.app.outputs.release_version }}
           path: ${{ env.APK_OUTPUT }}/*.apk
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ steps.app.outputs.version }}
-          tag_name: ${{ steps.app.outputs.version }}
+          name: ${{ steps.app.outputs.release_version }}
+          tag_name: ${{ steps.app.outputs.release_version }}
           body_path: ${{ github.workspace }}/CHANGELOG.md
           draft: false
           prerelease: false

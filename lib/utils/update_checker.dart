@@ -51,7 +51,7 @@ class UpdateChecker {
   }
 
   Future<bool> hasNewVersion() async {
-    final latestVersion = getTag();
+    final latestVersion = _appVersionFromReleaseTag(getTag());
     final currentVersion = _versionName;
 
     log('latestVersion: $latestVersion, currentVersion: $currentVersion');
@@ -82,5 +82,10 @@ class UpdateChecker {
   static int _extractNumbers(String input) {
     final s = input.replaceAll(RegExp(r'[^0-9]'), '');
     return int.parse(s);
+  }
+
+  // 1.26.072313-alist-v3.62.0 -> 1.26.072313
+  static String _appVersionFromReleaseTag(String tag) {
+    return tag.split('-alist-').first;
   }
 }
