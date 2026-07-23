@@ -41,9 +41,9 @@ class _AppAboutDialogState extends State<AppAboutDialog> {
   @override
   Widget build(BuildContext context) {
     final alistUrl =
-        "https://github.com/alist-org/alist/releases/tag/$_alistVersion";
+        "https://github.com/AlistGo/alist/releases/tag/$_alistVersion";
     final appUrl =
-        "https://github.com/jing332/AListFlutter/releases/tag/$_version";
+        "https://github.com/skysliences/AListFlutter/releases/tag/$_version";
     return AboutDialog(
       applicationName: S.of(context).appName,
       applicationVersion: '$_version ($_versionCode)',

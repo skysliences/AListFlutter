@@ -1,54 +1,76 @@
-name: CheckAList
+name: Check AList
 
 on:
   schedule:
-    - cron: "0 5,17 * * *" # 每日5点和17点执行
+    # GitHub Actions cron uses UTC. These are 05:00 and 17:00 in Asia/Shanghai.
+    - cron: "0 9,21 * * *"
   workflow_dispatch:
   push:
     branches:
-      - "master"
+      - master
     paths:
-      - "sync_alist.yaml"  
+      - ".github/workflows/sync_alist.yaml"
+      - ".github/scripts/check_alist.sh"
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: sync-alist
+  cancel-in-progress: false
 
 jobs:
-  build:
+  check:
+    name: Check latest stable AList release
     runs-on: ubuntu-latest
     env:
+      ALIST_REPOSITORY: AlistGo/alist
       VERSION_FILE: ${{ github.workspace }}/alist_version
     steps:
-      - uses: actions/checkout@v3
-      - run: |
-          cd $GITHUB_WORKSPACE/.github/scripts
-          chmod +x ./*.sh
+      - name: Checkout
+        uses: actions/checkout@v4
 
-          touch ${{ env.VERSION_FILE }}
-          ./check_alist.sh
-
-      - name: Shell
-        run: |
-          echo "alist_version=${{ env.alist_version }}"
-          echo "alist_update=${{ env.alist_update }}" 
-
-          # 用于测试
-          # echo "alist_update=1" >> $GITHUB_ENV 
-
-          if [ ${{ env.alist_update }} -eq 0 ]
-          then
-            echo "无更新"
-          else
-            echo -e "[自动同步AList] ${{ env.alist_version }}" > $GITHUB_WORKSPACE/CHANGELOG.md
-            echo -e "${{ env.alist_version }}" > ${{ env.VERSION_FILE }}
-
-            git config user.name "github-actions"
-            git config user.email "42014615+jing332@users.noreply.github.com"
-            git add .
-            git commit -m "[bot] Update alist to ${{ env.alist_version }}"
-            git push
-          fi
-
-      - name: Run workflow release
-        if: env.alist_update == 1 && ( success() || failure() )
-        run: |
-          gh workflow run release.yaml -R jing332/AListFlutter
+      - name: Check AList version
+        id: alist
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          chmod +x .github/scripts/check_alist.sh
+          .github/scripts/check_alist.sh
+
+      - name: Update tracked AList version
+        if: steps.alist.outputs.update == 'true'
+        env:
+          ALIST_VERSION: ${{ steps.alist.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_notes="$(
+            gh api "repos/${ALIST_REPOSITORY}/releases/tags/${ALIST_VERSION}" \
+              --jq '.body // ""'
+          )"
+
+          printf '%s\n' "${ALIST_VERSION}" > "${VERSION_FILE}"
+          {
+            printf '[自动同步 AList] %s\n\n' "${ALIST_VERSION}"
+            printf '上游发布：https://github.com/%s/releases/tag/%s\n\n' \
+              "${ALIST_REPOSITORY}" "${ALIST_VERSION}"
+            printf '%s\n' "${release_notes}"
+          } > CHANGELOG.md
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add alist_version CHANGELOG.md
+          git commit -m "[bot] Update AList to ${ALIST_VERSION}"
+          git push
+
+      - name: Build and publish APK
+        if: steps.alist.outputs.update == 'true'
+        env:
+          ALIST_VERSION: ${{ steps.alist.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run release.yaml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref "${GITHUB_REF_NAME}" \
+            --field "alist_version=${ALIST_VERSION}"

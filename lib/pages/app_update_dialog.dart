@@ -19,7 +19,8 @@ class AppUpdateDialog extends StatelessWidget {
 
   static checkUpdateAndShowDialog(
       BuildContext context, ValueChanged<bool>? checkFinished) async {
-    final checker = UpdateChecker(owner: "jing332", repo: "AListFlutter");
+    final checker =
+        UpdateChecker(owner: "skysliences", repo: "AListFlutter");
     await checker.downloadData();
     checker.hasNewVersion().then((value) {
       checkFinished?.call(value);

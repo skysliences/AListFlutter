@@ -3,95 +3,153 @@ name: Release
 on:
   push:
     branches:
-      - "master"
+      - master
     paths:
-      - "CHANGELOG.md"
+      - CHANGELOG.md
   workflow_dispatch:
+    inputs:
+      alist_version:
+        description: "AList release tag to build (for example v3.62.0)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.alist_version || github.sha }}
+  cancel-in-progress: false
 
 jobs:
- android:
+  android:
+    name: Build and publish Android APKs
     runs-on: ubuntu-latest
     env:
-      output: "${{ github.workspace }}/build/app/outputs/apk/release"
+      APK_OUTPUT: ${{ github.workspace }}/build/app/outputs/apk/release
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Download AList Source Code
+      - name: Resolve AList version
+        id: alist
+        env:
+          REQUESTED_VERSION: ${{ inputs.alist_version }}
         run: |
-          cd $GITHUB_WORKSPACE/alist-lib/scripts
-          chmod +x *.sh
+          version="${REQUESTED_VERSION}"
+          if [[ -z "${version}" ]]; then
+            version="$(tr -d '[:space:]' < alist_version)"
+          fi
+          if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid AList version: ${version}" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "ALIST_VERSION=${version}" >> "${GITHUB_ENV}"
+
+      - name: Download AList source and web assets
+        run: |
+          cd "${GITHUB_WORKSPACE}/alist-lib/scripts"
+          chmod +x ./*.sh
           ./init_alist.sh
           ./init_web.sh
 
-      - uses: actions/setup-go@v5
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.22
-          cache-dependency-path: ${{ github.workspace }}/alist-lib/alist/go.sum
+          go-version: stable
+          cache-dependency-path: ${{ github.workspace }}/alist-lib/go.sum
 
-      - uses: actions/setup-java@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      - uses: nttld/setup-ndk@v1
+      - name: Set up Android NDK
+        uses: nttld/setup-ndk@v1
         id: setup-ndk
         with:
           ndk-version: r25c
 
-      - name: Setup Gradle
-        uses: gradle/gradle-build-action@v3
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
 
-      - name: Build AList
-        run: |
-            cd $GITHUB_WORKSPACE/alist-lib/scripts
-            chmod +x *.sh
-            ./init_gomobile.sh
-            ./gobind.sh
+      - name: Build AList Android library
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          cd "${GITHUB_WORKSPACE}/alist-lib/scripts"
+          ./init_gomobile.sh
+          ./gobind.sh
 
-      - name: Upload AAR
+      - name: Upload AList Android library
         uses: actions/upload-artifact@v4
         with:
-          name: "AList"
-          path: "${{ github.workspace }}/android/app/libs/*.aar"
+          name: AList-${{ steps.alist.outputs.version }}
+          path: ${{ github.workspace }}/android/app/libs/*.aar
 
-      - name: Init Signature
+      - name: Validate signing secrets
+        env:
+          ALIAS_NAME: ${{ secrets.ALIAS_NAME }}
+          ALIAS_PASSWORD: ${{ secrets.ALIAS_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_STORE: ${{ secrets.KEY_STORE }}
         run: |
-          touch local.properties
-          cd android
-          echo ALIAS_NAME='${{ secrets.ALIAS_NAME }}' >> local.properties
-          echo ALIAS_PASSWORD='${{ secrets.ALIAS_PASSWORD }}' >> local.properties
-          echo KEY_PASSWORD='${{ secrets.KEY_PASSWORD }}' >> local.properties
-          echo KEY_PATH='./key.jks' >> local.properties
-          # 从Secrets读取无换行符Base64解码, 然后保存到到app/key.jks
-          echo ${{ secrets.KEY_STORE }} | base64 --decode > $GITHUB_WORKSPACE/android/app/key.jks
+          for name in ALIAS_NAME ALIAS_PASSWORD KEY_PASSWORD KEY_STORE; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing required Actions secret: ${name}" >&2
+              exit 1
+            fi
+          done
 
-      - uses: subosito/flutter-action@v2
+      - name: Initialize signing
+        env:
+          ALIAS_NAME: ${{ secrets.ALIAS_NAME }}
+          ALIAS_PASSWORD: ${{ secrets.ALIAS_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_STORE: ${{ secrets.KEY_STORE }}
+        run: |
+          {
+            printf "ALIAS_NAME='%s'\n" "${ALIAS_NAME}"
+            printf "ALIAS_PASSWORD='%s'\n" "${ALIAS_PASSWORD}"
+            printf "KEY_PASSWORD='%s'\n" "${KEY_PASSWORD}"
+            printf "KEY_PATH='./key.jks'\n"
+          } > android/local.properties
+          printf '%s' "${KEY_STORE}" | base64 --decode > android/app/key.jks
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.6'
-      - run: flutter build apk --split-per-abi --release
+          flutter-version: "3.19.6"
+          cache: true
 
-      - name: Upload missing_rules.txt
-        if: failure() && steps.gradle.outcome != 'success'
+      - name: Build release APKs
+        run: flutter build apk --split-per-abi --release
+
+      - name: Read app version
+        id: app
+        run: |
+          version="$(
+            jq --exit-status --raw-output \
+              '.elements[0].versionName' \
+              "${APK_OUTPUT}/output-metadata.json"
+          )"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: "missing_rules"
-          path: "${{ github.workspace }}/build/app/outputs/mapping/release/missing_rules.txt"
+          name: AListFlutter-${{ steps.app.outputs.version }}
+          path: ${{ env.APK_OUTPUT }}/*.apk
 
-      - name: Init APP Version Name
-        run: |
-          echo "ver_name=$(grep -m 1 'versionName' ${{ env.output }}/output-metadata.json | cut -d\" -f4)" >> $GITHUB_ENV
-
-      - uses: softprops/action-gh-release@v1
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: ${{ env.ver_name }}
-          tag_name: ${{ env.ver_name }}
+          name: ${{ steps.app.outputs.version }}
+          tag_name: ${{ steps.app.outputs.version }}
           body_path: ${{ github.workspace }}/CHANGELOG.md
           draft: false
           prerelease: false
-          files: ${{ env.output }}/*.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+          files: ${{ env.APK_OUTPUT }}/*.apk

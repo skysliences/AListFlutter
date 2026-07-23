@@ -1,12 +1,6 @@
-# 本项目已停止更新，请您使用其他开源软件代替。
-- https://github.com/LeoHaoVIP/AListLiteAndroid
-- https://github.com/OpenListApp/OpenListApp
-
----
-
-[![Release](https://github.com/jing332/AListFlutter/actions/workflows/release.yaml/badge.svg)](https://github.com/jing332/AListFlutter/actions/workflows/release.yaml)
-[![Test](https://github.com/jing332/AListFlutter/actions/workflows/build.yaml/badge.svg)](https://github.com/jing332/AListFlutter/actions/workflows/build.yaml)
-[![CheckAList](https://github.com/jing332/AListFlutter/actions/workflows/sync_alist.yaml/badge.svg)](https://github.com/jing332/AListFlutter/actions/workflows/sync_alist.yaml)
+[![Release](https://github.com/skysliences/AListFlutter/actions/workflows/release.yaml/badge.svg)](https://github.com/skysliences/AListFlutter/actions/workflows/release.yaml)
+[![Test](https://github.com/skysliences/AListFlutter/actions/workflows/build.yaml/badge.svg)](https://github.com/skysliences/AListFlutter/actions/workflows/build.yaml)
+[![CheckAList](https://github.com/skysliences/AListFlutter/actions/workflows/sync_alist.yaml/badge.svg)](https://github.com/skysliences/AListFlutter/actions/workflows/sync_alist.yaml)
 
 #### 🚩　[FRP](https://github.com/fatedier/frp) 安卓版本：https://github.com/jing332/FrpAndroid
 #### 🚩　[AListAndroid](https://github.com/jing332/AlistAndroid) Compose版本，已停更
@@ -15,9 +9,9 @@
 
 AListFlutter是一个基于AList的Android服务端，使用Google Flutter作为UI框架。
 
-> [Github Actions](https://github.com/jing332/AListFlutter/actions/workflows/sync_alist.yaml)
-> 每日早晚五点钟检查最新的 [AList](https://github.com/alist-org/alist/releases)
-> 并自动构建APK，发布到 [Release](https://github.com/jing332/AListFlutter/releases)
+> [Github Actions](https://github.com/skysliences/AListFlutter/actions/workflows/sync_alist.yaml)
+> 每日北京时间早晚五点钟检查最新的 [AList](https://github.com/AlistGo/alist/releases)
+> 并自动构建APK，发布到 [Release](https://github.com/skysliences/AListFlutter/releases)
 > 中，您只需耐心等待片刻并在应用内检查更新即可。
 
 <img src="./images/alist.jpg" height="150px">
@@ -31,5 +25,4 @@ AListFlutter是一个基于AList的Android服务端，使用Google Flutter作为
 
 # Download
 
-- [Github Action (DEV)](https://github.com/jing332/AListFlutter/actions/workflows/build.yaml) 开发版
-
+- [Github Action (DEV)](https://github.com/skysliences/AListFlutter/actions/workflows/build.yaml) 开发版

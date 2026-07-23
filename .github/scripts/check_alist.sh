@@ -1,55 +1,65 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-GIT_REPO="https://github.com/alist-org/alist.git"
+set -euo pipefail
 
-function to_int() {
-    echo $(echo "$1" | grep -oE '[0-9]+' | tr -d '\n')
-}
+ALIST_REPOSITORY="${ALIST_REPOSITORY:-AlistGo/alist}"
+: "${VERSION_FILE:?VERSION_FILE must point to the tracked AList version file}"
 
-function get_latest_version() {
-    echo $(git -c 'versionsort.suffix=-' ls-remote --exit-code --refs --sort='version:refname' --tags $GIT_REPO | tail --lines=1 | cut --delimiter='/' --fields=3)
-}
+api_url="https://api.github.com/repos/${ALIST_REPOSITORY}/releases/latest"
+curl_args=(
+  --fail
+  --silent
+  --show-error
+  --location
+  --retry 4
+  --retry-all-errors
+  --header "Accept: application/vnd.github+json"
+  --header "X-GitHub-Api-Version: 2022-11-28"
+)
 
-LATEST_VER=""
-for index in $(seq 5)
-do
-    echo "Try to get latest version, index=$index"
-    LATEST_VER=$(get_latest_version)
-    if [ -z "$LATEST_VER" ]; then
-      if [ "$index" -ge 5 ]; then
-        echo "Failed to get latest version, exit"
-        exit 1
-      fi
-      echo "Failed to get latest version, sleep 15s and retry"
-      sleep 15
-    else
-      break
-    fi
-
-done
-
-LATEST_VER_INT=$(to_int "$LATEST_VER")
-echo "Latest AList version $LATEST_VER ${LATEST_VER_INT}"
-
-echo "alist_version=$LATEST_VER" >> "$GITHUB_ENV"
-# VERSION_FILE="$GITHUB_WORKSPACE/alist_version.txt"
-
-VER=$(cat "$VERSION_FILE")
-
-if [ -z "$VER" ]; then
-  VER="v3.25.1"
-  echo "No version file, use default version ${VER}"
+if [[ -n "${GH_TOKEN:-}" ]]; then
+  curl_args+=(--header "Authorization: Bearer ${GH_TOKEN}")
 fi
 
-VER_INT=$(to_int $VER)
+latest_version="$(
+  curl "${curl_args[@]}" "${api_url}" |
+    jq --exit-status --raw-output '.tag_name'
+)"
 
-echo "Current AList version: $VER ${VER_INT}"
+if [[ ! "${latest_version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+  echo "Unexpected AList release tag: ${latest_version}" >&2
+  exit 1
+fi
 
+current_version=""
+if [[ -f "${VERSION_FILE}" ]]; then
+  current_version="$(tr -d '[:space:]' < "${VERSION_FILE}")"
+fi
 
-if [ "$VER_INT" -ge "$LATEST_VER_INT" ]; then
-    echo "Current >= Latest"
-    echo "alist_update=0" >> "$GITHUB_ENV"
+echo "Current AList version: ${current_version:-none}"
+echo "Latest AList version:  ${latest_version}"
+
+update=false
+if [[ "${current_version}" != "${latest_version}" ]]; then
+  update=true
+fi
+
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  {
+    echo "version=${latest_version}"
+    echo "update=${update}"
+  } >> "${GITHUB_OUTPUT}"
+fi
+
+if [[ -n "${GITHUB_ENV:-}" ]]; then
+  {
+    echo "alist_version=${latest_version}"
+    echo "alist_update=${update}"
+  } >> "${GITHUB_ENV}"
+fi
+
+if [[ "${update}" == "true" ]]; then
+  echo "A new stable AList release is available."
 else
-    echo "Current < Latest"
-    echo "alist_update=1" >> "$GITHUB_ENV"
+  echo "AList is already up to date."
 fi
